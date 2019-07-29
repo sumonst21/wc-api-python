@@ -59,7 +59,7 @@ class API(object):
 
         return oauth.get_oauth_url()
 
-    async def request(self, method, endpoint, data, ignore_headers):
+    async def request(self, method, endpoint, data, ignore_headers=False):
         """ Do requests """
         url = self.__get_url(endpoint)
         auth = None
