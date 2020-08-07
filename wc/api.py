@@ -59,11 +59,20 @@ class API(object):
 
         return oauth.get_oauth_url()
 
-    async def request(self, method, endpoint, data, ignore_headers=False):
+    async def request(self, method, endpoint, data, params=None, ignore_headers=False):
         """ Do requests """
         url = self.__get_url(endpoint)
         auth = None
-        params = {}
+
+        if params is None:
+            # If no params have been passed we set it to be an empty dict
+            params = {}
+        elif isinstance(params, dict):
+            # Clear the consumer key and secret if they where passed as parameters.
+            params.pop("consumer_key", None)
+            params.pop("consumer_secret", None)
+        else:
+            raise ValueError(f"Expected a dict of params but instead received '{type(params)}'")
 
         if ignore_headers:
             # It was discovered in https://github.com/channable/issues/issues/1929 that not sending
@@ -77,13 +86,15 @@ class API(object):
                 "accept": "application/json"
             }
 
-        if self.is_ssl is True and self.query_string_auth is False:
-            auth = aiohttp.BasicAuth(self.consumer_key, self.consumer_secret)
-        elif self.is_ssl is True and self.query_string_auth is True:
-            params = {
-                "consumer_key": self.consumer_key,
-                "consumer_secret": self.consumer_secret
-            }
+        # If ssl is set to true
+        if self.is_ssl is True:
+            if self.query_string_auth is False:
+                auth = aiohttp.BasicAuth(self.consumer_key, self.consumer_secret)
+            else:
+                params.update({
+                    "consumer_key": self.consumer_key,
+                    "consumer_secret": self.consumer_secret
+                })
         else:
             url = self.__get_oauth_url(url, method)
 
