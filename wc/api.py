@@ -29,7 +29,6 @@ class API(object):
         self.verify_ssl = kwargs.get("verify_ssl", True)
         self.query_string_auth = kwargs.get("query_string_auth", False)
 
-
     def __is_ssl(self):
         """ Check if url use HTTPS """
         return self.url.startswith("https")
@@ -54,51 +53,70 @@ class API(object):
             consumer_key=self.consumer_key,
             consumer_secret=self.consumer_secret,
             version=self.version,
-            method=method
+            method=method,
         )
 
         return oauth.get_oauth_url()
 
-    async def request(self, method, endpoint, data, ignore_headers=False):
+    async def request(self, method, endpoint, data, params=None, ignore_headers=False):
         """ Do requests """
         url = self.__get_url(endpoint)
         auth = None
-        params = {}
+
+        if params is None:
+            # If no params have been passed we set it to be an empty dict
+            params = {}
+        elif isinstance(params, dict):
+            # Clear the consumer key and secret if they where passed as parameters.
+            # These should only be present when `is_ssl` and `query_string_auth` are
+            # true and in that case they should not provided by the user.
+            params.pop("consumer_key", None)
+            params.pop("consumer_secret", None)
+        else:
+            raise ValueError(
+                f"Expected a dict of params but instead received '{type(params)}'"
+            )
 
         if ignore_headers:
             # It was discovered in https://github.com/channable/issues/issues/1929 that not sending
             # the 'content-type' and 'accept' headers will solve an issue where the api returns an
             # invalid json response beginning with `Order:<br/>{}`
-            headers = {"user-agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"}
+            headers = {
+                "user-agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
+            }
         else:
             headers = {
                 "user-agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
                 "content-type": "application/json;charset=utf-8",
-                "accept": "application/json"
+                "accept": "application/json",
             }
 
-        if self.is_ssl is True and self.query_string_auth is False:
-            auth = aiohttp.BasicAuth(self.consumer_key, self.consumer_secret)
-        elif self.is_ssl is True and self.query_string_auth is True:
-            params = {
-                "consumer_key": self.consumer_key,
-                "consumer_secret": self.consumer_secret
-            }
+        # If ssl is set to true
+        if self.is_ssl is True:
+            if self.query_string_auth is False:
+                auth = aiohttp.BasicAuth(self.consumer_key, self.consumer_secret)
+            else:
+                params.update(
+                    {
+                        "consumer_key": self.consumer_key,
+                        "consumer_secret": self.consumer_secret,
+                    }
+                )
         else:
             url = self.__get_oauth_url(url, method)
 
         if data is not None:
-            data = jsonencode(data, ensure_ascii=False).encode('utf-8')
+            data = jsonencode(data, ensure_ascii=False).encode("utf-8")
 
         return await self.client_session.request(
             method=method,
             url=url,
-            #verify=self.verify_ssl,
+            # verify=self.verify_ssl,
             auth=auth,
             params=params,
             data=data,
-            #timeout=self.timeout,
-            headers=headers
+            # timeout=self.timeout,
+            headers=headers,
         )
 
     async def get(self, endpoint):
