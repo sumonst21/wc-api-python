@@ -68,6 +68,8 @@ class API(object):
             params = {}
         elif isinstance(params, dict):
             # Clear the consumer key and secret if they where passed as parameters.
+            # These should only be present when `is_ssl` and `query_string_auth` are
+            # true and in that case they should not provided by the user.
             params.pop("consumer_key", None)
             params.pop("consumer_secret", None)
         else:
